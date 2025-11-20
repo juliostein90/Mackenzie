@@ -1,9 +1,9 @@
-name: CD - Deploy Continuo # Nome do Pipeline
+name: CD - Deploy Continuo
 
 on:
-  # Aciona APENAS quando o workflow de CI (com o nome especificado) for COMPLETED
+  # Acionado após o sucesso do workflow de CI
   workflow_run:
-    workflows: ["CI - Integracao Continua"]
+    workflows: ["CI - Integracao Continua"] # Deve ser o nome exato do 'name' em ci.yml
     types:
       - completed
     branches:
@@ -11,33 +11,45 @@ on:
 
 jobs:
   deploy:
-    # So executa se o CI tiver sido bem-sucedido
+    # A condicao garante que este job so roda se o CI foi bem-sucedido
     if: ${{ github.event.workflow_run.conclusion == 'success' }}
     runs-on: ubuntu-latest
     permissions:
-      pages: write        # Permissao necessaria para o deploy
-      id-token: write     # Permissao para autenticacao
+      pages: write        
+      id-token: write     
     
     steps:
-      # 1. Download do Artefato
-      - name: 1. Download do Artefato de Construcao
+      # 1. Checkout (Necessario para usar actions)
+      - name: 1. Checkout do Repositorio (Obrigatorio)
+        uses: actions/checkout@v4
+      
+      # 2. Download do Artefato - PONTO CHAVE DA CORREÇÃO
+      - name: 2. Download do Artefato de Construcao (Cross-Workflow)
         uses: actions/download-artifact@v4
         with:
           name: meu-site-estatico
-          path: deploy/ # Onde o artefato sera baixado
+          path: deploy/
+          # <<-- ESSA LINHA RESOLVE O ERRO DE ARTEFATO NÃO ENCONTRADO
+          run-id: ${{ github.event.workflow_run.id }} 
           
-      # 2. Configura o ambiente Pages
-      - name: 2. Configurar GitHub Pages
+      # 3. Configura o ambiente para o GitHub Pages
+      - name: 3. Configurar GitHub Pages
         uses: actions/configure-pages@v5
         
-      # 3. Preparacao para o Deploy
-      - name: 3. Preparar Arquivos para o Deploy
+      # 4. Preparacao para o Deploy
+      - name: 4. Preparar Arquivos para o Deploy
         run: |
-          # Move os arquivos baixados (deploy/meu-site-estatico/...) para a pasta padrao do deploy (_site)
+          # O download-artifact armazena o artefato em deploy/meu-site-estatico/
           mkdir _site
           cp -r deploy/meu-site-estatico/* _site/
 
-      # 4. Deploy Final
-      - name: 4. Deploy no GitHub Pages
+      # 5. Publicar Artefato para o Pages
+      - name: 5. Publicar Artefato para o Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '_site'
+          
+      # 6. Concluir o Deploy
+      - name: 6. Deploy no GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
