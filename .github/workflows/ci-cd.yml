@@ -1,19 +1,20 @@
 name: CI/CD Pipeline Completo
 
+# Gatilho: Executa em todo push para a branch 'main'
 on:
   push:
     branches:
-      - main # Aciona em push para a branch principal
+      - main
 
 jobs:
-  # Job 1: Build & Upload Artifact (O seu antigo CI)
+  # Job 1: Build & Upload Artifact (CI)
   build:
     runs-on: ubuntu-latest
     steps:
       - name: 1. Checkout do repositorio
         uses: actions/checkout@v4
       
-      - name: 2. Validar Arquivo index.html (Teste)
+      - name: 2. Validar Arquivo index.html (Teste Simples)
         run: |
           if [ -f "site/index.html" ]; then
             echo "Validacao do arquivo de site OK."
@@ -26,14 +27,16 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: meu-site-estatico 
-          path: site/ 
+          path: site/ # A pasta 'site' é empacotada
           retention-days: 1
 
-  # Job 2: Deploy to Pages (O seu antigo CD)
+  # Job 2: Deploy to Pages (CD)
   deploy:
     name: Deploy no GitHub Pages
-    # Este job SÓ roda se o job 'build' tiver sucesso
+    # O deploy SÓ roda se o 'build' tiver sucesso
     needs: build 
+    
+    # Configurações de permissões e ambiente
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -43,7 +46,7 @@ jobs:
       id-token: write     
     
     steps:
-      # 1. Download do Artefato (agora dentro do mesmo workflow)
+      # 1. Download do Artefato gerado no job 'build'
       - name: 1. Download do Artefato de Construcao
         uses: actions/download-artifact@v4
         with:
@@ -53,12 +56,18 @@ jobs:
       - name: 2. Configurar GitHub Pages
         uses: actions/configure-pages@v5
         
+      # 3. Preparar Arquivos para o Deploy (CORREÇÃO DE CAMINHO)
       - name: 3. Preparar Arquivos para o Deploy
         run: |
           mkdir _site
-          # O caminho do download-artifact e: [path]/[artifact_name]/...
-          cp -r deploy/meu-site-estatico/* _site/ 
+          # Copia TUDO o que foi baixado (o conteúdo de 'site/') para '_site/'
+          cp -r deploy/* _site/ 
 
-      - name: 4. Deploy no GitHub Pages
+      - name: 4. Publicar Artefato para o Pages
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: '_site'
+          
+      - name: 5. Concluir o Deploy
         id: deployment
         uses: actions/deploy-pages@v4
