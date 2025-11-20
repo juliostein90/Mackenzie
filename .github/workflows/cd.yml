@@ -1,0 +1,43 @@
+name: CD - Deploy Continuo # Nome do Pipeline
+
+on:
+  # Aciona APENAS quando o workflow de CI (com o nome especificado) for COMPLETED
+  workflow_run:
+    workflows: ["CI - Integracao Continua"]
+    types:
+      - completed
+    branches:
+      - main
+
+jobs:
+  deploy:
+    # So executa se o CI tiver sido bem-sucedido
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write        # Permissao necessaria para o deploy
+      id-token: write     # Permissao para autenticacao
+    
+    steps:
+      # 1. Download do Artefato
+      - name: 1. Download do Artefato de Construcao
+        uses: actions/download-artifact@v4
+        with:
+          name: meu-site-estatico
+          path: deploy/ # Onde o artefato sera baixado
+          
+      # 2. Configura o ambiente Pages
+      - name: 2. Configurar GitHub Pages
+        uses: actions/configure-pages@v5
+        
+      # 3. Preparacao para o Deploy
+      - name: 3. Preparar Arquivos para o Deploy
+        run: |
+          # Move os arquivos baixados (deploy/meu-site-estatico/...) para a pasta padrao do deploy (_site)
+          mkdir _site
+          cp -r deploy/meu-site-estatico/* _site/
+
+      # 4. Deploy Final
+      - name: 4. Deploy no GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
