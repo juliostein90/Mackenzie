@@ -1,0 +1,64 @@
+name: CI/CD Pipeline Completo
+
+on:
+  push:
+    branches:
+      - main # Aciona em push para a branch principal
+
+jobs:
+  # Job 1: Build & Upload Artifact (O seu antigo CI)
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 1. Checkout do repositorio
+        uses: actions/checkout@v4
+      
+      - name: 2. Validar Arquivo index.html (Teste)
+        run: |
+          if [ -f "site/index.html" ]; then
+            echo "Validacao do arquivo de site OK."
+          else
+            echo "ERRO: Arquivo principal nao encontrado. CI Falhou."
+            exit 1
+          fi
+          
+      - name: 3. Upload de Artefatos de Construcao
+        uses: actions/upload-artifact@v4
+        with:
+          name: meu-site-estatico 
+          path: site/ 
+          retention-days: 1
+
+  # Job 2: Deploy to Pages (O seu antigo CD)
+  deploy:
+    name: Deploy no GitHub Pages
+    # Este job SÓ roda se o job 'build' tiver sucesso
+    needs: build 
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write        
+      id-token: write     
+    
+    steps:
+      # 1. Download do Artefato (agora dentro do mesmo workflow)
+      - name: 1. Download do Artefato de Construcao
+        uses: actions/download-artifact@v4
+        with:
+          name: meu-site-estatico
+          path: deploy/ 
+          
+      - name: 2. Configurar GitHub Pages
+        uses: actions/configure-pages@v5
+        
+      - name: 3. Preparar Arquivos para o Deploy
+        run: |
+          mkdir _site
+          # O caminho do download-artifact e: [path]/[artifact_name]/...
+          cp -r deploy/meu-site-estatico/* _site/ 
+
+      - name: 4. Deploy no GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
